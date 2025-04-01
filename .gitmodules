@@ -1,0 +1,3 @@
+[submodule "Synchronizer"]
+	path = Synchronizer
+	url = git@github.com:paulviville/Synchronizer.git
