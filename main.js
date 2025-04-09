@@ -6,31 +6,32 @@ import Stats from './Synchronizer/three/libs/stats.module.js';
 import { OrbitControls } from './Synchronizer/three/controls/OrbitControls.js';
 
 
+import SceneInterface from './Synchronizer/SceneInterface.js';
+
+const sceneInterface = new SceneInterface();
+// const gltf = await sceneInterface.loadFile(`./scene.gltf`);
 
 
 
+// const scene = new THREE.Scene();
+// scene.background = new THREE.Color(0x555555);
 
-
-
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x555555);
-
-let ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
-scene.add(ambientLight);
-let pointLight0 = new THREE.PointLight(0xffffff, 100);
-pointLight0.position.set(5,4,5);
-scene.add(pointLight0);
+// let ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+// scene.add(ambientLight);
+// let pointLight0 = new THREE.PointLight(0xffffff, 100);
+// pointLight0.position.set(5,4,5);
+// scene.add(pointLight0);
 
 const camera = new THREE.PerspectiveCamera( 50, window.innerWidth / window.innerHeight, 0.1, 50 );
 camera.position.set( 0, 1.6, 2.5 );
 
-const renderer = new THREE.WebGLRenderer({antialias: true});
-renderer.autoClear = false;
-renderer.setPixelRatio( window.devicePixelRatio );
-renderer.setSize( window.innerWidth, window.innerHeight );
-document.body.appendChild( renderer.domElement );
+// const renderer = new THREE.WebGLRenderer({antialias: true});
+// renderer.autoClear = false;
+// renderer.setPixelRatio( window.devicePixelRatio );
+// renderer.setSize( window.innerWidth, window.innerHeight );
+// document.body.appendChild( renderer.domElement );
 
-const orbitControls = new OrbitControls(camera, renderer.domElement);
+// const orbitControls = new OrbitControls(camera, renderer.domElement);
 
 
 const otherCameras = {};
@@ -172,7 +173,9 @@ window.sendCameraData = sendCameraData;
 function animate() {
   if(nbClients)
     sendCameraData()
-  renderer.render( scene, camera );
+  // renderer.render( scene, camera );
+
+  sceneInterface.renderer.render( sceneInterface.scene, sceneInterface.camera );
 }
 
 renderer.setAnimationLoop( animate );
