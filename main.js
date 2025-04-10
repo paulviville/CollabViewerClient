@@ -7,10 +7,18 @@ import { OrbitControls } from './Synchronizer/three/controls/OrbitControls.js';
 
 
 import SceneInterface from './Synchronizer/SceneInterface.js';
+import SceneDescriptor from './Synchronizer/SceneDescriptor.js';
+import SceneController from './Synchronizer/SceneController.js';
+import SceneSynchronizer from './Synchronizer/SceneSynchronizer.js';
 
 const sceneInterface = new SceneInterface();
-// const gltf = await sceneInterface.loadFile(`./scene.gltf`);
+const sceneDescriptor = new SceneDescriptor();
 
+const gltf = await sceneInterface.loadFile(`./scene.gltf`);
+sceneDescriptor.loadGLTF(gltf.parser.json);
+
+const sceneSynchronizer = new SceneSynchronizer(sceneInterface, sceneDescriptor);
+const sceneController = new SceneController(sceneInterface, sceneSynchronizer);
 
 
 const camera = new THREE.PerspectiveCamera( 50, window.innerWidth / window.innerHeight, 0.1, 50 );
@@ -21,10 +29,6 @@ const otherCameras = {};
 const otherCamerasHelpers = {};
 const otherPointers = {};
 const otherPointersHelpers = {};
-
-
-let testId = 123456;
-
 
 const grid = new THREE.GridHelper(20, 20)
 sceneInterface.scene.add(grid)
@@ -134,12 +138,11 @@ socket.onmessage = function(event) {
   else {
     switch(commandId){
       case UPDATE_CAMERA:
-		console.log("UPDATE_CAMERA")
-		updateCamera(senderId, {x: data[2], y: data[3], z: data[4]}, {x: data[5], y: data[6], z: data[7]});
-		break;
-	case UPDATE_POINTER:
-		updatePointer(senderId, {x: data[2], y: data[3], z: data[4]}, {x: data[5], y: data[6], z: data[7]});
-		break;
+        updateCamera(senderId, {x: data[2], y: data[3], z: data[4]}, {x: data[5], y: data[6], z: data[7]});
+		    break;
+    	case UPDATE_POINTER:
+		    updatePointer(senderId, {x: data[2], y: data[3], z: data[4]}, {x: data[5], y: data[6], z: data[7]});
+		    break;
     }
     // console.log(data)
   }
@@ -181,7 +184,6 @@ function sendCameraData ( ) {
 
 function sendPointer ( ) {
 	const {p0, p1} = sceneInterface.pointer;
-	console.log(p0, p1);
 	pointer.p0.copy(p0);
 	pointer.p1.copy(p1);
 
