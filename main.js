@@ -122,6 +122,8 @@ socket.onmessage = function(event) {
 
 				addCamera(data[2]);
 				addPointer(data[2]);
+				sendCameraData();
+				sendPointer();
 				break;
 			case CommandTypes.REMOVE_PLAYER:
 				--nbClients;
