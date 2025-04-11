@@ -11,6 +11,13 @@ import SceneDescriptor from './Synchronizer/SceneDescriptor.js';
 import SceneController from './Synchronizer/SceneController.js';
 import SceneSynchronizer from './Synchronizer/SceneSynchronizer.js';
 
+
+import CommandTypes from './Synchronizer/CommandTypes.js';
+import ClientMessageHandler from './ClientMessageHandler.js';
+
+console.log(CommandTypes.NEW_PLAYER)
+
+
 const sceneInterface = new SceneInterface();
 const sceneDescriptor = new SceneDescriptor();
 
@@ -19,6 +26,13 @@ sceneDescriptor.loadGLTF(gltf.parser.json);
 
 const sceneSynchronizer = new SceneSynchronizer(sceneInterface, sceneDescriptor);
 const sceneController = new SceneController(sceneInterface, sceneSynchronizer);
+
+const serverAddress = 'ws://localhost:8080';
+const clientMessageHandler = new ClientMessageHandler(serverAddress);
+
+
+
+
 
 
 const camera = new THREE.PerspectiveCamera( 50, window.innerWidth / window.innerHeight, 0.1, 50 );
@@ -77,12 +91,6 @@ sceneInterface.scene.add(pointerHelper.p0, pointerHelper.p1);
 const SERVER_ID = 0;
 
 
-let macroID = 0;
-const NEW_PLAYER = macroID++;
-const REMOVE_PLAYER = macroID++;
-const UPDATE_CAMERA = macroID++;
-const UPDATE_POINTER = macroID++;
-
 
 let clientId = 0;
 let otherClientsId = [];
@@ -93,59 +101,57 @@ socket.binaryType = 'arraybuffer'
 // console.log(socket)
 
 socket.onmessage = function(event) {
-  // console.log(event.data)
-  // console.log(typeof(event.data))
-  // console.log(new Float32Array(event.data))
+	console.log(event)
+	const data = new Float32Array(event.data);
+	const senderId = data[0];
+	const commandId = data[1];
+	/// sent by server
+	if(senderId == SERVER_ID) {
+    	switch(commandId) {
+			case CommandTypes.SET_PLAYER:
+				clientId = data[2];
+				console.log(`Set player id ${data[2]}`);
+				sendCameraData();
+				break;
+			case CommandTypes.NEW_PLAYER:
+					++nbClients;
+					otherClientsId[data[2]] = data[2];
+					console.log(`New player joined ${data[2]}`);
+					console.log(otherClientsId)
 
-  const data = new Float32Array(event.data);
-  const senderId = data[0];
-  const commandId = data[1];
-  // console.log(data)
-  /// sent by server
-  if(senderId == SERVER_ID) {
-    switch(commandId) {
-      case NEW_PLAYER:
-        /// uninitialized, get self id
-        if(clientId == 0){
-          clientId = data[2];
-          console.log(`Player id initialized ${data[2]}`);
-		  sendCameraData();
-        } 
-        /// get other ids
-        else {
-          ++nbClients;
-          otherClientsId[data[2]] = data[2];
-          console.log(`New player joined ${data[2]}`);
-          console.log(otherClientsId)
-
-          addCamera(data[2]);
-          addPointer(data[2]);
-        }
-        break;
-      case REMOVE_PLAYER:
-        --nbClients;
-        delete(otherClientsId[data[2]])
-        console.log(`Player ${data[2]} disconnected`);
-        removeCamera(data[2]);
-        removePointer(data[2]);
-        break;
-      default:
-        break;
-    }
+					addCamera(data[2]);
+					addPointer(data[2]);
+				break;
+			case CommandTypes.REMOVE_PLAYER:
+				--nbClients;
+				delete(otherClientsId[data[2]])
+				console.log(`Player ${data[2]} disconnected`);
+				removeCamera(data[2]);
+				removePointer(data[2]);
+				break;
+			default:
+				break;
+		}
     // console.log(data)
-  }
-  /// sent by other client
-  else {
-    switch(commandId){
-      case UPDATE_CAMERA:
-        updateCamera(senderId, {x: data[2], y: data[3], z: data[4]}, {x: data[5], y: data[6], z: data[7]});
-		    break;
-    	case UPDATE_POINTER:
-		    updatePointer(senderId, {x: data[2], y: data[3], z: data[4]}, {x: data[5], y: data[6], z: data[7]});
-		    break;
-    }
-    // console.log(data)
-  }
+  	}
+  	/// sent by other client
+	else {
+		switch ( commandId ) {
+			case CommandTypes.UPDATE_CAMERA:
+				updateCamera(senderId, {x: data[2], y: data[3], z: data[4]}, {x: data[5], y: data[6], z: data[7]});
+				break;
+			case CommandTypes.UPDATE_POINTER:
+				updatePointer(senderId, {x: data[2], y: data[3], z: data[4]}, {x: data[5], y: data[6], z: data[7]});
+				break;
+			case CommandTypes.STRING:
+				console.log(data);
+				break;
+			default:
+				console.log(data[0])
+				console.log("unknown message type");
+		}
+			// console.log(data)
+	}
 };
 
 
@@ -171,7 +177,7 @@ function sendMessage ( text ) {
 function sendCameraData ( ) {
 	const cameraData = new Float32Array([
 		clientId,
-		UPDATE_CAMERA,
+		CommandTypes.UPDATE_CAMERA,
 		sceneInterface.camera.position.x,
 		sceneInterface.camera.position.y,
 		sceneInterface.camera.position.z,
@@ -192,7 +198,7 @@ function sendPointer ( ) {
 
 	const pointerData = new Float32Array([
 		clientId,
-		UPDATE_POINTER,
+		CommandTypes.UPDATE_POINTER,
 		pointer.p0.x,
 		pointer.p0.y,
 		pointer.p0.z,
@@ -207,9 +213,26 @@ window.sendMessage = sendMessage;
 window.sendPointer = sendPointer;
 window.sendCameraData = sendCameraData;
 
+function sendString( string ) {
+	const messageHeader = new Float32Array([clientId, CommandTypes.STRING]);
+	
+	const stringBuffer = new TextEncoder().encode(string);
+	const lengthBuffer = new ArrayBuffer(4);
+	const lengthView = new DataView(lengthBuffer);
+	lengthView.setUint32(0, stringBuffer.byteLength, true);
+	
+	const combinedBuffer = new Float32Array(messageHeader.byteLength + lengthBuffer.byteLength + stringBuffer.byteLength);
+	combinedBuffer.set(new Float32Array(messageHeader), 0);
+	combinedBuffer.set(new Float32Array(lengthBuffer), messageHeader.byteLength);
+	combinedBuffer.set(stringBuffer, messageHeader.byteLength + lengthBuffer.byteLength);
+
+	console.log(clientId, CommandTypes.STRING, string)
+
+	socket.send(combinedBuffer.buffer);
+}
 
 
-
+window.sendString = sendString;
 
 function animate() {
 
