@@ -11,12 +11,14 @@ export default class ClientMessageHandler {
     }
 
     connect ( ) {
-
+		this.#socket = new WebSocket(this.#address);
+		this.#socket.binaryType = 'arrayBuffer';
     }
 
     setSynchronizer ( sceneSynchronizer ) {
 
     }
 
+	// sendObjectTransform ( object)
 
 }
