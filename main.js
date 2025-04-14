@@ -25,6 +25,28 @@ sceneDescriptor.loadGLTF(gltf.parser.json);
 const sceneSynchronizer = new SceneSynchronizer(sceneInterface, sceneDescriptor);
 const sceneController = new SceneController(sceneInterface, sceneSynchronizer);
 
+const gui = sceneController.gui;
+let cameraFolder = gui.addFolder("cameras");
+const masterCamera = {
+	slaved: false,
+	camera: null,
+	// cameraBuffer: null
+}
+cameraFolder.add(masterCamera, "slaved").onChange( value => {
+	if(masterCamera.camera) {
+		if(value) {
+			masterCamera.camera.far = 50;
+			masterCamera.camera.updateProjectionMatrix();
+		} else {
+			masterCamera.camera.far = 1;
+			masterCamera.camera.updateProjectionMatrix();
+		}
+		console.log(value)
+	}
+
+});
+let camerasDropDown;
+
 const serverAddress = 'ws://localhost:8080';
 const clientMessageHandler = new ClientMessageHandler(serverAddress);
 clientMessageHandler.setSynchronizer(sceneSynchronizer);
@@ -38,6 +60,7 @@ camera.position.set( 0, 1.6, 2.5 );
 camera.updateMatrixWorld();
 window.testMatrix = camera.matrixWorld;
 
+
 const otherCameras = {};
 const otherCamerasHelpers = {};
 const otherPointers = {};
@@ -48,9 +71,29 @@ sceneInterface.scene.add(grid)
 
 window.otherCameras = otherCameras;
 
+function addCamerasToGui ( ) {
+	if(camerasDropDown)
+		camerasDropDown.destroy();
+
+	for(const cameraID in otherCameras) {
+		console.log(cameraID, otherCameras[cameraID])
+	}
+
+	camerasDropDown = cameraFolder.add(masterCamera, "camera", otherCameras).onChange(value => {
+		if(masterCamera.camera) {
+			masterCamera.camera.far = 1;
+			masterCamera.camera.updateProjectionMatrix();
+		}
+		console.log(value)
+		masterCamera.camera = value;
+		masterCamera.camera.far = 50;
+		masterCamera.camera.updateProjectionMatrix();
+	});
+}
+window.addCamerasToGui = addCamerasToGui;
 
 function addCamera(id) {
-	otherCameras[id] = new THREE.PerspectiveCamera( 50, 16/9, 0.01, 1 );
+	otherCameras[id] = new THREE.PerspectiveCamera( 50, window.innerWidth / window.innerHeight, 0.1, 1  );
 	otherCamerasHelpers[id] = new THREE.CameraHelper(otherCameras[id]);
 	sceneInterface.scene.add(otherCamerasHelpers[id]);
 }
@@ -132,6 +175,7 @@ socket.onmessage = function(event) {
 				addPointer(data[2]);
 				sendCameraData();
 				sendPointer();
+				addCamerasToGui();
 				break;
 			case CommandTypes.REMOVE_PLAYER:
 				--nbClients;
@@ -216,7 +260,7 @@ function sendCameraData ( ) {
 }
 
 function sendPointer ( ) {
-	const {p0, p1} = sceneInterface.pointer;
+	const {p0, p1} = sceneInterface.raycast( masterCamera.slaved ? masterCamera.camera : undefined );
 	pointer.p0.copy(p0);
 	pointer.p1.copy(p1);
 
@@ -395,9 +439,9 @@ window.sendCameraData = sendCameraData;
 window.scene = sceneInterface.scene;
 
 function animate() {
+	const camera = masterCamera.slaved && masterCamera.camera ? masterCamera.camera : sceneInterface.camera; 
 
-
-	sceneInterface.renderer.render( sceneInterface.scene, sceneInterface.camera );
+	sceneInterface.renderer.render( sceneInterface.scene, camera );
 
 	if( nbClients == 0 )
 		return;
