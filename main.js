@@ -5,7 +5,6 @@ import Stats from './Synchronizer/three/libs/stats.module.js';
 
 import { OrbitControls } from './Synchronizer/three/controls/OrbitControls.js';
 
-
 import SceneInterface from './Synchronizer/SceneInterface.js';
 import SceneDescriptor from './Synchronizer/SceneDescriptor.js';
 import SceneController from './Synchronizer/SceneController.js';
@@ -28,7 +27,7 @@ const sceneController = new SceneController(sceneInterface, sceneSynchronizer);
 
 const serverAddress = 'ws://localhost:8080';
 const clientMessageHandler = new ClientMessageHandler(serverAddress);
-
+clientMessageHandler.setSynchronizer(sceneSynchronizer);
 
 
 
@@ -71,6 +70,8 @@ function addPointer(id) {
 	const sphereMesh0 = new THREE.Mesh(sphereGeometry, sphereMaterial);
 	const sphereMesh1 = new THREE.Mesh(sphereGeometry, sphereMaterial);
 	otherPointersHelpers[id] = {p0: sphereMesh0, p1: sphereMesh1};
+	console.log(otherPointersHelpers[id])
+	otherPointersHelpers[id].p0.scale.set(0.1, 0.1, 0.1);
 	sceneInterface.scene.add(otherPointersHelpers[id].p0, otherPointersHelpers[id].p1);
 }
 
@@ -83,7 +84,7 @@ function removePointer(id) {
 const sphereMaterial2 = new THREE.MeshBasicMaterial({color: 0xFF0000, wireframe: true});
 const pointer = {p0: new THREE.Vector3(), p1: new THREE.Vector3()};
 const pointerHelper = {p0:  new THREE.Mesh(sphereGeometry, sphereMaterial2), p1:  new THREE.Mesh(sphereGeometry, sphereMaterial2)};
-
+pointerHelper.p0.scale.set(0.1, 0.1, 0.1);
 sceneInterface.scene.add(pointerHelper.p0, pointerHelper.p1);
 
 
@@ -96,8 +97,14 @@ let clientId = 0;
 let otherClientsId = {};
 let nbClients = 0;
 
-const socket = new WebSocket('ws://localhost:8080');
-socket.binaryType = 'arraybuffer'
+// const socket = new WebSocket('ws://localhost:8080');
+// socket.binaryType = 'arraybuffer'
+
+clientMessageHandler.connect();
+const socket = clientMessageHandler.socket;
+
+sceneSynchronizer.setMessageHandler(clientMessageHandler);
+
 // console.log(socket)
 
 socket.onmessage = function(event) {
@@ -112,6 +119,7 @@ socket.onmessage = function(event) {
 			case CommandTypes.SET_PLAYER:
 				clientId = data[2];
 				console.log(`Set player id ${data[2]}`);
+				clientMessageHandler.clientId = clientId;
 				sendCameraData();
 				break;
 			case CommandTypes.NEW_PLAYER:
@@ -171,28 +179,7 @@ socket.onmessage = function(event) {
 	}
 };
 
-function decodeString ( buffer ) {
-	const view = new DataView(buffer);
-	let offset = 0;
-	
-	const senderId = view.getFloat32(offset, true); offset += 4;
-	const command = view.getFloat32(offset, true); offset += 4;
-	const stringLength = view.getUint32(offset, true); offset += 4;
 
-	const stringBytes = new Uint8Array(buffer, offset, stringLength);
-	offset += stringLength;
-	const decoder = new TextDecoder();
-	const string = decoder.decode(stringBytes);
-
-	const matrixArray = new Array(16);
-	for(let i = 0; i < 16; ++i) {
-		matrixArray[i] = view.getFloat32(offset, true);
-		offset += 4;
-	}
-	const matrix = new THREE.Matrix4(...matrixArray)
-
-	console.log(senderId, command, stringLength, string, matrix);
-}
 
 
 function updatePointer ( id, p0, p1 ) {
@@ -406,37 +393,6 @@ window.sendPointer = sendPointer;
 window.sendTransform = sendTransform;
 window.sendCameraData = sendCameraData;
 window.scene = sceneInterface.scene;
-function sendString( string ) {
-	const encoder = new TextEncoder();
-	const stringEncoded = encoder.encode(string);
-	const stringLength = stringEncoded.length;
-
-	/// clientId + Command + stringLength + string + matrix
-	/// f32 + f32 + u32 + string + 16 * f32
-	const bufferSize = 4 + 4 + 4 + stringLength + 64;
-	const buffer = new ArrayBuffer(bufferSize);
-	const view = new DataView(buffer);
-
-	let offset = 0;
-	view.setFloat32(offset, clientId, true); offset += 4;
-	view.setFloat32(offset, CommandTypes.STRING, true); offset += 4;
-	view.setUint32(offset, stringLength, true); offset += 4;
-	new Uint8Array(buffer, offset, stringLength).set(stringEncoded);
-	offset += stringLength;
-
-	const matrixArray = [];
-	const matrix = new THREE.Matrix4(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16);
-	matrix.toArray(matrixArray);
-	for(let i = 0; i < 16; ++i) {
-		view.setFloat32(offset, matrixArray[i], true);
-		offset += 4;
-	}
-
-	socket.send(buffer);
-}
-
-
-window.sendString = sendString;
 
 function animate() {
 
